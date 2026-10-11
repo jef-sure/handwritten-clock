@@ -65,11 +65,16 @@ static void draw_qrcode(esp_qrcode_handle_t code)
 
 void setup_screen_state(dgx_screen_t *screen, const char *state)
 {
+    /* the strip and its text are one picture: a display that shows a batch whole shows them together */
+    dgx_screen_progress_up(screen);
     draw_line_of_text(screen, screen->height - state_strip(screen), state_strip(screen), state);
+    dgx_screen_progress_down(screen);
 }
 
 void setup_screen_draw(dgx_screen_t *screen, const char *title, const char *code, const char *state)
 {
+    /* one batch: the modules of the code are hundreds of rectangles, and a batch of its own each would take a frame each */
+    dgx_screen_progress_up(screen);
     dgx_fill_rectangle(screen, 0, 0, screen->width, screen->height, dgx_rgb_to_16(255, 255, 255));
     draw_line_of_text(screen, 0, title_strip(screen), title);
     setup_screen_state(screen, state);
@@ -79,4 +84,5 @@ void setup_screen_draw(dgx_screen_t *screen, const char *title, const char *code
         qr.display_func = draw_qrcode;
         esp_qrcode_generate(&qr, code);
     }
+    dgx_screen_progress_down(screen);
 }

@@ -30,22 +30,39 @@ typedef struct {
 static dgx_screen_t *display;
 static QueueHandle_t queue;
 
+static void put(const display_message_t *message)
+{
+    xSemaphoreTake(message->hold, portMAX_DELAY);
+    if (message->band && message->width) {
+        dgx_vscreen8_region_to_screen16(display, message->x + message->left, message->y + message->top, message->band, message->left,
+                                        message->top, message->width, message->height, message->lut, false);
+    } else if (message->band) {
+        dgx_vscreen8_to_screen16(display, message->x, message->y, message->band, message->lut, false);
+    }
+    if (message->glow) dgx_morph_glow_present(message->glow, message->t, display, message->x, message->y);
+    xSemaphoreGive(message->hold);
+    if (message->waiter) xTaskNotifyGive(message->waiter);
+}
+
 static void display_task(void *arg)
 {
     (void)arg;
     display_message_t message;
     for (;;) {
         if (!xQueueReceive(queue, &message, portMAX_DELAY)) continue;
-        xSemaphoreTake(message.hold, portMAX_DELAY);
-        if (message.band && message.width) {
-            dgx_vscreen8_region_to_screen16(display, message.x + message.left, message.y + message.top, message.band, message.left, message.top,
-                                            message.width, message.height, message.lut, false);
-        } else if (message.band) {
-            dgx_vscreen8_to_screen16(display, message.x, message.y, message.band, message.lut, false);
-        }
-        if (message.glow) dgx_morph_glow_present(message.glow, message.t, display, message.x, message.y);
-        xSemaphoreGive(message.hold);
-        if (message.waiter) xTaskNotifyGive(message.waiter);
+        /*
+         * What waits by now goes to the display as one batch. A display
+         * that shows a batch whole from its next frame on takes one batch a
+         * frame: the time, the weather and the name of the place, each a
+         * batch of its own, would wait a frame for one another. To a display
+         * behind SPI a batch means nothing. Only what waits now is taken:
+         * those who ask do not stop asking.
+         */
+        int more = (int)uxQueueMessagesWaiting(queue);
+        dgx_screen_progress_up(display);
+        put(&message);
+        while (more-- > 0 && xQueueReceive(queue, &message, 0)) put(&message);
+        dgx_screen_progress_down(display);
     }
 }
 
@@ -140,7 +157,8 @@ dgx_screen_t *display_init(void)
         ESP_LOGE(TAG, "dgx_dsi_init failed");
         return NULL;
     }
-    dgx_screen_t *screen = dgx_jd9165_init(bus, (gpio_num_t)LCD_PIN_NUM_RST, 16, DgxScreenRGB);
+    /* two frame buffers: what the display task puts as one batch is seen whole, from the next frame on */
+    dgx_screen_t *screen = dgx_jd9165_init(bus, (gpio_num_t)LCD_PIN_NUM_RST, 16, DgxScreenRGB, DgxDsiTwoFrames);
     if (!screen) {
         ESP_LOGE(TAG, "dgx_jd9165_init failed");
         bus->dispose(bus);
