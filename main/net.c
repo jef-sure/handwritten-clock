@@ -2,7 +2,6 @@
 #include <string.h>
 #include <time.h>
 
-#include "esp_bt.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -17,7 +16,14 @@
 #include "network_provisioning/manager.h"
 #include "network_provisioning/scheme_ble.h"
 #include "nvs.h"
+#include "sdkconfig.h"
 
+#if CONFIG_BT_CONTROLLER_ENABLED
+#include "esp_bt.h"
+#endif
+#if CONFIG_ESP_HOSTED_HOST_FEAT_BT
+#include "esp_hosted_bt_host_stack.h"
+#endif
 
 #include "net.h"
 #include "settings.h"
@@ -243,7 +249,9 @@ bool net_get_address(char *text, size_t size)
 
 esp_err_t net_start(void)
 {
+#if CONFIG_BT_CONTROLLER_ENABLED
     esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
+#endif
 
     const esp_timer_create_args_t timer = {.callback = reconnect, .name = "reconnect"};
     esp_err_t                     ret = esp_timer_create(&timer, &reconnect_timer);
@@ -294,6 +302,16 @@ bool net_provision(dgx_screen_t *screen, uint32_t timeout_ms)
         .scheme_event_handler = NETWORK_PROV_EVENT_HANDLER_NONE,
     };
     keep_network();
+#if CONFIG_ESP_HOSTED_HOST_FEAT_BT
+    /* the Bluetooth controller is in the co-processor: it is started there and bound to the stack here */
+    esp_hosted_bt_host_stack_cfg_t bluetooth = ESP_HOSTED_BT_HOST_STACK_CONFIG_DEFAULT();
+    esp_err_t                      ret = esp_hosted_bt_host_stack_setup(&bluetooth);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "No Bluetooth in the co-processor: %s", esp_err_to_name(ret));
+        end_keeping(false);
+        return false;
+    }
+#endif
     if (network_prov_mgr_init(config) != ESP_OK) {
         end_keeping(false);
         return false;

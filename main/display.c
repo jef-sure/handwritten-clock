@@ -1,18 +1,36 @@
 #include "driver/gpio.h"
-#include "driver/spi_common.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "sdkconfig.h"
 
-#include "bus/dgx_spi_esp32.h"
-#include "drivers/ili9341.h"
 #include "drivers/vscreen.h"
 
 #include "display.h"
 
 static const char *TAG = "display";
+
+#if CONFIG_IDF_TARGET_ESP32P4
+
+#include "bus/dgx_dsi_esp32.h"
+#include "drivers/jd9165.h"
+
+/* Guition JC1060P470: JD9165 1024x600 on two lanes of MIPI-DSI */
+static const int LCD_DSI_LANES = 2;
+static const int LCD_DSI_LANE_MBPS = 750;
+static const int LCD_PHY_LDO_CHAN = 3; /* the regulator of the chip that powers the DSI PHY */
+static const int LCD_PHY_LDO_MV = 2500;
+static const int LCD_PIN_NUM_RST = 0;
+static const int LCD_PIN_NUM_BACKLIGHT = 23; /* on at high level */
+
+#else
+
+#include "driver/spi_common.h"
+
+#include "bus/dgx_spi_esp32.h"
+#include "drivers/ili9341.h"
 
 /* CYD (ESP32-2432S028): ILI9341 320x240 on its own SPI bus */
 #define LCD_HOST SPI2_HOST
@@ -25,6 +43,8 @@ static const int LCD_PIN_NUM_DC = 2;
 static const int LCD_PIN_NUM_RST = GPIO_NUM_NC;
 static const int LCD_PIN_NUM_BACKLIGHT = 21;
 static const int LCD_SPI_CLOCK_MHZ = 40;
+
+#endif
 
 /* What to show: a virtual screen through its table of colors, or a frame of dots. */
 typedef struct {
@@ -130,6 +150,31 @@ bool display_start(void)
     return xTaskCreate(display_task, "display", 4096, NULL, tskIDLE_PRIORITY + 3, NULL) == pdPASS;
 }
 
+#if CONFIG_IDF_TARGET_ESP32P4
+
+dgx_screen_t *display_init(void)
+{
+    dgx_bus_protocols_t *bus = dgx_dsi_init(0, LCD_DSI_LANES, LCD_DSI_LANE_MBPS, LCD_PHY_LDO_CHAN, LCD_PHY_LDO_MV);
+    if (!bus) {
+        ESP_LOGE(TAG, "dgx_dsi_init failed");
+        return NULL;
+    }
+    dgx_screen_t *screen = dgx_jd9165_init(bus, (gpio_num_t)LCD_PIN_NUM_RST, 16, DgxScreenRGB);
+    if (!screen) {
+        ESP_LOGE(TAG, "dgx_jd9165_init failed");
+        bus->dispose(bus);
+        return NULL;
+    }
+    dgx_jd9165_orientation(screen, DgxScreenLeftRight, DgxScreenTopBottom, false);
+    /* the light goes on over a black frame buffer, not over what the panel had before */
+    gpio_set_direction((gpio_num_t)LCD_PIN_NUM_BACKLIGHT, GPIO_MODE_OUTPUT);
+    gpio_set_level((gpio_num_t)LCD_PIN_NUM_BACKLIGHT, 1);
+    display = screen;
+    return screen;
+}
+
+#else
+
 dgx_screen_t *display_init(void)
 {
     dgx_bus_protocols_t *bus = dgx_spi_init(
@@ -153,3 +198,5 @@ dgx_screen_t *display_init(void)
     display = screen;
     return screen;
 }
+
+#endif

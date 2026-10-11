@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
+#include "sdkconfig.h"
 
 #include "dgx_bits.h"
 #include "dgx_colors.h"
@@ -36,7 +37,12 @@ static const char *TAG = "main";
  * long it is held means nothing: such a button is held by a hand that takes
  * the clock.
  */
+#if CONFIG_IDF_TARGET_ESP32P4
+/* GPIO 0 of Guition JC1060P470 is the reset of its display */
+#define BUTTON_GPIO GPIO_NUM_35
+#else
 #define BUTTON_GPIO GPIO_NUM_0
+#endif
 /* The page of settings waits for somebody so long, and so long for the network before that. */
 #define WEB_SETTINGS_TIMEOUT_MS 300000
 #define WEB_NETWORK_TIMEOUT_MS  60000
