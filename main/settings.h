@@ -45,8 +45,9 @@ void settings_normalize(settings_t *settings);
 
 /*
  * The address the device is told apart by: its last three bytes end the name
- * in the network and the name of the Wi-Fi setup. That of the Wi-Fi station
- * where the chip has a radio; the chip's own where the radio is another chip.
+ * in the network and the name of the Wi-Fi setup. It is the address of the
+ * chip itself, which a chip with a radio gives to its Wi-Fi station as well;
+ * a chip with the radio beside it has no other.
  */
 void settings_device_mac(uint8_t mac[6]);
 

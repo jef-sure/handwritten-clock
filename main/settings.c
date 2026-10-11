@@ -37,7 +37,7 @@ static settings_t        current;
 void settings_device_mac(uint8_t mac[6])
 {
     memset(mac, 0, 6);
-    if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK) esp_read_mac(mac, ESP_MAC_BASE);
+    esp_read_mac(mac, ESP_MAC_BASE);
 }
 
 void settings_normalize(settings_t *settings)

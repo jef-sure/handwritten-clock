@@ -204,8 +204,12 @@ void app_main(void)
         esp_restart();
     }
     if (radio && (boot == BOOT_WIFI_SETUP || !net_is_provisioned())) {
-        net_provision(screen, net_is_provisioned() ? WIFI_SETUP_TIMEOUT_MS : 0);
-        esp_restart();
+        bool kept = net_is_provisioned();
+        /* with no network kept the setup waits for ever: it comes back empty-handed only when it could not start */
+        if (net_provision(screen, kept ? WIFI_SETUP_TIMEOUT_MS : 0) || kept) esp_restart();
+        ESP_LOGE(TAG, "No setup of Wi-Fi and no network: the clock goes without one");
+        dgx_fill_rectangle(screen, 0, 0, screen->width, screen->height, paper);
+        radio = false;
     }
     if (radio) {
         ret = net_start();
