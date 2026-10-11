@@ -320,8 +320,8 @@ bool net_provision(dgx_screen_t *screen, uint32_t timeout_ms)
     network_prov_mgr_disable_auto_stop(1000);
 
     char    name[sizeof(PROV_PREFIX "XXXXXX")];
-    uint8_t mac[6] = {0};
-    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    uint8_t mac[6];
+    settings_device_mac(mac);
     snprintf(name, sizeof(name), PROV_PREFIX "%02X%02X%02X", mac[3], mac[4], mac[5]);
     if (network_prov_mgr_start_provisioning(NETWORK_PROV_SECURITY_1, PROV_POP, name, NULL) != ESP_OK) {
         network_prov_mgr_deinit();

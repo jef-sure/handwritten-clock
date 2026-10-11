@@ -34,6 +34,12 @@ static const char       *KEY_BOOT = "boot";
 static SemaphoreHandle_t mutex;
 static settings_t        current;
 
+void settings_device_mac(uint8_t mac[6])
+{
+    memset(mac, 0, 6);
+    if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK) esp_read_mac(mac, ESP_MAC_BASE);
+}
+
 void settings_normalize(settings_t *settings)
 {
     settings->host_name[SETTINGS_HOST_NAME_LEN - 1] = 0;
@@ -56,8 +62,8 @@ void settings_normalize(settings_t *settings)
     while (end > settings->host_name && end[-1] == '-') --end;
     *end = 0;
     if (!settings->host_name[0]) {
-        uint8_t mac[6] = {0};
-        esp_read_mac(mac, ESP_MAC_WIFI_STA);
+        uint8_t mac[6];
+        settings_device_mac(mac);
         snprintf(settings->host_name, SETTINGS_HOST_NAME_LEN, DEFAULT_HOST_NAME "-%02x%02x%02x", mac[3], mac[4], mac[5]);
     }
 }
