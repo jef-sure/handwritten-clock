@@ -1,6 +1,12 @@
-# The following lines of boilerplate have to be in your project's
+# The following five lines of boilerplate have to be in your project's
 # CMakeLists in this exact order for cmake to work correctly
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.22)
+
+# ESP-IDF 5 needs settings of its own beside the common ones
+include($ENV{IDF_PATH}/tools/cmake/version.cmake)
+if(IDF_VERSION_MAJOR LESS 6)
+    set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.idf5")
+endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(app-template)
+project(handwritten-clock)

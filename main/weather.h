@@ -1,34 +1,28 @@
-/*
- * MIT License
- *
- * Copyright (c) 2021 Anton Petrusevich
- *
- */
-#ifndef MAIN_WEATHER_H_
-#define MAIN_WEATHER_H_
+#pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
-typedef struct weather_ {
-    int idCond;
-    const char *mainGroup;
-    const char *description;
-    int iconId;
-    uint32_t symCode, symNight;
-} weather_t;
+typedef struct {
+    int      temperature; /* degrees Celsius, rounded */
+    int      id;          /* the weather condition code of OpenWeatherMap */
+    uint32_t symbol;      /* its code point in the Weather Icons font, by day or by night */
+    char     city[64];    /* the name of the place, when known */
+    int64_t  sunrise, sunset; /* of today there, in seconds of the epoch; 0: not known */
+} weather_now_t;
 
-#define WEATHERCOLOR24TORGB(r,g,b, color) \
-    do {\
-        uint32_t lclr = (uint32_t)(color);\
-        (r) = (lclr >> 16) & 0xFF;\
-        (g) = (lclr >> 8) & 0xFF;\
-        (b) = lclr & 0xFF;\
-    } while(0)
+/* Called from the task of the weather every time the weather is got. */
+typedef void (*weather_listener_t)(const weather_now_t *now);
 
-#define WEATHERRGBTOCOLOR24(r,g,b) (((r) << 16) | ((g) << 8) | (b))
+/*
+ * Starts the task that asks OpenWeatherMap for the weather of the place of
+ * the settings, once in a while. It asks nothing while the settings have no
+ * key or no place.
+ */
+bool weather_start(weather_listener_t listener);
 
-const weather_t* findWeather(int id);
-uint32_t findWeatherSymbol(int id, uint8_t is_daytime);
-uint32_t weatherTempToRGB(int temp);
+/* The code point of the Weather Icons font for a condition code; 0 for an unknown one. */
+uint32_t weather_symbol(int id, bool daytime);
 
-#endif /* MAIN_WEATHER_H_ */
+/* The color of a temperature: from blue in frost through green to red in heat. */
+void weather_temp_to_rgb(int temp, uint8_t *r, uint8_t *g, uint8_t *b);

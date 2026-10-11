@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Weather Clock Settings</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <style>
+        input#clear_wifi:checked[type=checkbox],
+        input#clear_all:checked[type=checkbox] {
+            background-color: crimson;
+        }
+
+        label.form-label {
+            user-select: none;
+        }
+
+        .form-check-input {
+            border-width: medium;
+        }
+    </style>
+</head>
+<body onload="on_load()" class="p-3">
+    <form action="/" method="post" onsubmit="return on_submit(event)">
+        <div class="mb-3">
+            <header class="d-flex justify-content-left py-3">Weather Clock configuration</header>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-success">Save</button>
+                <button type="submit" name="cancel" value="cancel" class="btn btn-warning">Cancel</button>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="openweather_key" class="form-label">Openweathermap.org API key</label>
+            <input type="text" name="openweather_key" id="openweather_key" class="form-control" value="%OPENWEATHER_KEY%">
+        </div>
+        <div class="mb-3">
+            <input type="checkbox" name="is_auto_location" id="is_auto_location" class="form-check-input" %IS_AUTO_LOCATION_CHECKED%
+                   onchange="on_is_auto_location(this.checked)">
+            <label for="is_auto_location" class="form-label">Guess location from IP Info</label>
+        </div>
+        <div class="mb-3" id="div_ip_info_key">
+            <label for="ip_info_key" class="form-label">IP Info API key</label>
+            <input type="text" name="ip_info_key" id="ip_info_key" class="form-control" value="%IP_INFO_KEY%">
+        </div>
+        <div class="div_location mb-3">
+            <label for="location" class="form-label">Manual location</label>
+            <input type="text" name="location" id="location" class="form-control" value="%LOCATION%">
+            <div class="form-text">Coordinates, "52.52,13.40", or a city and a country, "Berlin,DE", or a postal code and a country, "10115,DE".</div>
+        </div>
+        <div class="mb-3">
+            <label for="place_name" class="form-label">Name on the screen</label>
+            <input type="text" name="place_name" id="place_name" class="form-control" value="%PLACE_NAME%" placeholder="%CITY%" maxlength="63">
+        </div>
+        <div class="div_location mb-3">
+            <label for="timezone" class="form-label">Manual timezone</label>
+            <select name="timezone" id="timezone" class="form-select">%TIMEZONE_OPTIONS%</select>
+        </div>
+        <div class="mb-3">
+            <label for="host_name" class="form-label">Host name</label>
+            <input type="text" name="host_name" id="host_name" class="form-control" value="%HOST_NAME%" maxlength="31"
+                   pattern="[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?">
+            <div class="form-text">Letters, digits and hyphens. Empty: the name the clock has by itself.</div>
+        </div>
+        <div class="mb-3">
+            <input type="checkbox" name="clear_wifi" id="clear_wifi" class="form-check-input">
+            <label for="clear_wifi" class="form-label">Clear WiFi data</label>
+            <div class="form-text">The clock forgets its network and shows the QR code of the Wi-Fi setup.</div>
+        </div>
+        <div class="mb-3">
+            <input type="checkbox" name="clear_all" id="clear_all" class="form-check-input">
+            <label for="clear_all" class="form-label">Clear all settings</label>
+            <div class="form-text">The clock forgets everything it keeps: the network, the keys, the place and its name. For giving it to somebody else.</div>
+        </div>
+        <p class="form-text">The clock restarts with the settings as soon as they are saved.</p>
+    </form>
+    <script>
+        function on_is_auto_location(checked) {
+            document.getElementById("div_ip_info_key").style.display = checked ? null : "none";
+            document.querySelectorAll(".div_location").forEach(e => e.style.display = checked ? "none" : null);
+        }
+        function on_submit(event) {
+            if (event.submitter && event.submitter.name == "cancel") return true;
+            if (!document.getElementById("clear_all").checked) return true;
+            return confirm("Clear all settings of the clock?");
+        }
+        function on_load() {
+            on_is_auto_location(document.getElementById("is_auto_location").checked);
+        }
+    </script>
+</body>
+</html>

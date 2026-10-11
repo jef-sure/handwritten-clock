@@ -1,0 +1,5 @@
+# ESP-IDF 5 keeps FreeRTOS and the ring buffer in RAM unless told otherwise,
+# and the code of Wi-Fi and BLE does not fit there beside them. ESP-IDF 6 has
+# them in flash by itself.
+CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y
+CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH=y

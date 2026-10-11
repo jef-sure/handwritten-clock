@@ -1,7 +1,0 @@
-src/fonts/UbuntuCondensedRegular16.c
-src/fonts/UbuntuCondensedRegular20.c
-src/fonts/UbuntuCondensedRegular24.c
-src/fonts/UbuntuCondensedRegular28.c
-src/fonts/UbuntuCondensedRegular32.c
-src/fonts/UbuntuCondensedRegular36.c
-src/fonts/WeatherIconsRegular40.c
