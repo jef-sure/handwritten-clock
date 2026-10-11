@@ -59,7 +59,7 @@
 
 Нужен ESP-IDF 5.2 или новее. Собирал и проверял я под 5.5.4 и 6.0.1, на одной
 плате, а под версиями от 5.2 до 5.4 не проверял. Компоненты, включая
-[dgx](https://github.com/jef-sure/esp32-component-dgx) 0.4.9, скачает менеджер
+[dgx](https://github.com/jef-sure/esp32-component-dgx) 0.5.0, скачает менеджер
 компонентов.
 
     idf.py set-target esp32

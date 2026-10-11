@@ -65,7 +65,7 @@ The button is GPIO 0, the BOOT button of a CYD.
 
 ESP-IDF 5.2 or newer is needed. I built and tested under 5.5.4 and 6.0.1, on
 one board, and did not test under versions 5.2 to 5.4. The components,
-[dgx](https://github.com/jef-sure/esp32-component-dgx) 0.4.9 included, are
+[dgx](https://github.com/jef-sure/esp32-component-dgx) 0.5.0 included, are
 downloaded by the component manager.
 
     idf.py set-target esp32
