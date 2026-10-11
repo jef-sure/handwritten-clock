@@ -37,8 +37,8 @@ static const char *TAG = "main";
  * long it is held means nothing: such a button is held by a hand that takes
  * the clock.
  */
+/* BOOT is a pin the chip names: GPIO 0 of an ESP32, GPIO 35 of an ESP32-P4, whose GPIO 0 resets the display on Guition JC1060P470 */
 #if CONFIG_IDF_TARGET_ESP32P4
-/* GPIO 0 of Guition JC1060P470 is the reset of its display */
 #define BUTTON_GPIO GPIO_NUM_35
 #else
 #define BUTTON_GPIO GPIO_NUM_0
@@ -187,21 +187,30 @@ void app_main(void)
     }
     set_time_of_build();
 
-    ESP_ERROR_CHECK(net_init());
+    /*
+     * A radio that does not answer is no reason to stop: it may be a chip of
+     * its own beside this one. The clock goes then from the time it has, with
+     * no setup and no weather, and the sign of Wi-Fi in the top row waits.
+     */
+    ret = net_init();
+    bool radio = ret == ESP_OK;
+    if (!radio) ESP_LOGE(TAG, "No Wi-Fi: %s", esp_err_to_name(ret));
     button_init();
     /* a setup has the screen and the memory to itself; the clock comes with the next boot */
     boot_mode_t boot = settings_take_boot();
-    if (boot == BOOT_WEB_SETTINGS && net_is_provisioned()) {
+    if (radio && boot == BOOT_WEB_SETTINGS && net_is_provisioned()) {
         /* no way to the page: the next boot offers another network, and goes on with this one if none is given */
         if (!web_settings(screen)) settings_ask_boot(BOOT_WIFI_SETUP);
         esp_restart();
     }
-    if (boot == BOOT_WIFI_SETUP || !net_is_provisioned()) {
+    if (radio && (boot == BOOT_WIFI_SETUP || !net_is_provisioned())) {
         net_provision(screen, net_is_provisioned() ? WIFI_SETUP_TIMEOUT_MS : 0);
         esp_restart();
     }
-    ret = net_start();
-    if (ret != ESP_OK) ESP_LOGE(TAG, "Wi-Fi does not start: %s", esp_err_to_name(ret));
+    if (radio) {
+        ret = net_start();
+        if (ret != ESP_OK) ESP_LOGE(TAG, "Wi-Fi does not start: %s", esp_err_to_name(ret));
+    }
     /* from here on the display has a task of its own, and nobody else sends anything to it */
     if (!display_start()) {
         ESP_LOGE(TAG, "The display task does not start");

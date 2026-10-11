@@ -18,16 +18,48 @@
 #include "nvs.h"
 #include "sdkconfig.h"
 
-#if CONFIG_BT_CONTROLLER_ENABLED
-#include "esp_bt.h"
-#endif
-#if CONFIG_ESP_HOSTED_HOST_FEAT_BT
-#include "esp_hosted_bt_host_stack.h"
-#endif
-
 #include "net.h"
 #include "settings.h"
 #include "setup_screen.h"
+
+/*
+ * The radio is in the chip, or in a chip beside it that esp_hosted talks to.
+ * Wi-Fi is the same calls either way. The Bluetooth controller is not: the
+ * one in the chip is started by the stack and gives its memory back when it
+ * is not needed, the one beside is started here and has no memory of this
+ * chip to give back.
+ */
+#if CONFIG_ESP_HOSTED_HOST_FEAT_BT
+
+#include "esp_hosted_bt_host_stack.h"
+
+static esp_err_t bluetooth_controller_start(void)
+{
+    esp_hosted_bt_host_stack_cfg_t config = ESP_HOSTED_BT_HOST_STACK_CONFIG_DEFAULT();
+    return esp_hosted_bt_host_stack_setup(&config);
+}
+
+static void bluetooth_controller_release(void)
+{
+}
+
+#elif CONFIG_BT_CONTROLLER_ENABLED
+
+#include "esp_bt.h"
+
+static esp_err_t bluetooth_controller_start(void)
+{
+    return ESP_OK;
+}
+
+static void bluetooth_controller_release(void)
+{
+    esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
+}
+
+#else
+#error "The setup of Wi-Fi goes over BLE: a Bluetooth controller is needed, in the chip or through esp_hosted"
+#endif
 
 static const char *TAG = "net";
 
@@ -249,9 +281,7 @@ bool net_get_address(char *text, size_t size)
 
 esp_err_t net_start(void)
 {
-#if CONFIG_BT_CONTROLLER_ENABLED
-    esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
-#endif
+    bluetooth_controller_release();
 
     const esp_timer_create_args_t timer = {.callback = reconnect, .name = "reconnect"};
     esp_err_t                     ret = esp_timer_create(&timer, &reconnect_timer);
@@ -302,16 +332,12 @@ bool net_provision(dgx_screen_t *screen, uint32_t timeout_ms)
         .scheme_event_handler = NETWORK_PROV_EVENT_HANDLER_NONE,
     };
     keep_network();
-#if CONFIG_ESP_HOSTED_HOST_FEAT_BT
-    /* the Bluetooth controller is in the co-processor: it is started there and bound to the stack here */
-    esp_hosted_bt_host_stack_cfg_t bluetooth = ESP_HOSTED_BT_HOST_STACK_CONFIG_DEFAULT();
-    esp_err_t                      ret = esp_hosted_bt_host_stack_setup(&bluetooth);
+    esp_err_t ret = bluetooth_controller_start();
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "No Bluetooth in the co-processor: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "The Bluetooth controller does not start: %s", esp_err_to_name(ret));
         end_keeping(false);
         return false;
     }
-#endif
     if (network_prov_mgr_init(config) != ESP_OK) {
         end_keeping(false);
         return false;

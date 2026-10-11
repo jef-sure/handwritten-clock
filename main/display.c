@@ -12,40 +12,6 @@
 
 static const char *TAG = "display";
 
-#if CONFIG_IDF_TARGET_ESP32P4
-
-#include "bus/dgx_dsi_esp32.h"
-#include "drivers/jd9165.h"
-
-/* Guition JC1060P470: JD9165 1024x600 on two lanes of MIPI-DSI */
-static const int LCD_DSI_LANES = 2;
-static const int LCD_DSI_LANE_MBPS = 750;
-static const int LCD_PHY_LDO_CHAN = 3; /* the regulator of the chip that powers the DSI PHY */
-static const int LCD_PHY_LDO_MV = 2500;
-static const int LCD_PIN_NUM_RST = 0;
-static const int LCD_PIN_NUM_BACKLIGHT = 23; /* on at high level */
-
-#else
-
-#include "driver/spi_common.h"
-
-#include "bus/dgx_spi_esp32.h"
-#include "drivers/ili9341.h"
-
-/* CYD (ESP32-2432S028): ILI9341 320x240 on its own SPI bus */
-#define LCD_HOST SPI2_HOST
-
-static const int LCD_PIN_NUM_MOSI = 13;
-static const int LCD_PIN_NUM_MISO = 12;
-static const int LCD_PIN_NUM_CLK = 14;
-static const int LCD_PIN_NUM_CS = 15;
-static const int LCD_PIN_NUM_DC = 2;
-static const int LCD_PIN_NUM_RST = GPIO_NUM_NC;
-static const int LCD_PIN_NUM_BACKLIGHT = 21;
-static const int LCD_SPI_CLOCK_MHZ = 40;
-
-#endif
-
 /* What to show: a virtual screen through its table of colors, or a frame of dots. */
 typedef struct {
     dgx_screen_t     *band;
@@ -150,7 +116,22 @@ bool display_start(void)
     return xTaskCreate(display_task, "display", 4096, NULL, tskIDLE_PRIORITY + 3, NULL) == pdPASS;
 }
 
-#if CONFIG_IDF_TARGET_ESP32P4
+/*
+ * The display of the board is the one whose driver is on in the configuration.
+ * Everything above knows nothing of it but a screen of 16 bits a pixel.
+ */
+#if CONFIG_DGX_ENABLE_JD9165
+
+#include "bus/dgx_dsi_esp32.h"
+#include "drivers/jd9165.h"
+
+/* Guition JC1060P470: JD9165 1024x600 on two lanes of MIPI-DSI */
+static const int LCD_DSI_LANES = 2;
+static const int LCD_DSI_LANE_MBPS = 750;
+static const int LCD_PHY_LDO_CHAN = 3; /* the regulator of the chip that powers the DSI PHY */
+static const int LCD_PHY_LDO_MV = 2500;
+static const int LCD_PIN_NUM_RST = 0;
+static const int LCD_PIN_NUM_BACKLIGHT = 23; /* on at high level */
 
 dgx_screen_t *display_init(void)
 {
@@ -173,7 +154,24 @@ dgx_screen_t *display_init(void)
     return screen;
 }
 
-#else
+#elif CONFIG_DGX_ENABLE_SPI_ILI_9341
+
+#include "driver/spi_common.h"
+
+#include "bus/dgx_spi_esp32.h"
+#include "drivers/ili9341.h"
+
+/* CYD (ESP32-2432S028): ILI9341 320x240 on its own SPI bus */
+#define LCD_HOST SPI2_HOST
+
+static const int LCD_PIN_NUM_MOSI = 13;
+static const int LCD_PIN_NUM_MISO = 12;
+static const int LCD_PIN_NUM_CLK = 14;
+static const int LCD_PIN_NUM_CS = 15;
+static const int LCD_PIN_NUM_DC = 2;
+static const int LCD_PIN_NUM_RST = GPIO_NUM_NC;
+static const int LCD_PIN_NUM_BACKLIGHT = 21;
+static const int LCD_SPI_CLOCK_MHZ = 40;
 
 dgx_screen_t *display_init(void)
 {
@@ -199,4 +197,6 @@ dgx_screen_t *display_init(void)
     return screen;
 }
 
+#else
+#error "No display: turn on the dgx driver of the display of the board, see sdkconfig.defaults.<target>"
 #endif
