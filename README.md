@@ -132,9 +132,12 @@ fonts like this, and this clock got to be the first project built on them. The
 questions about setup, location, and time zone were closed along the way; see
 the section on setup.
 
-Handwritten text in dgx on video, before there was a clock around it:
+Handwritten text in dgx, before there was a clock around it. The animation is
+the screen of the demo drawn on a PC by the same dgx code that runs on the
+board; [the video](https://youtu.be/3zXTnylonLs) shows the board itself writing
+a phrase in Russian:
 
-[![Video: handwritten text in dgx](./video-handwriting.jpg)](https://youtu.be/3zXTnylonLs)
+![The pen writes "Greetings to all the contestants"](./handwriting-en.gif)
 
 # Bézier curves on a microcontroller
 
