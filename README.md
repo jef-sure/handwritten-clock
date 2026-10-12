@@ -133,9 +133,9 @@ questions about setup, location, and time zone were closed along the way; see
 the section on setup.
 
 Handwritten text in dgx, before there was a clock around it. The animation is
-the screen of the demo drawn on a PC by the same dgx code that runs on the
-board; [the video](https://youtu.be/3zXTnylonLs) shows the board itself writing
-a phrase in Russian:
+the demo drawn on a PC by the dgx code and smoothed at the edges of the pen;
+the board itself, with the hard-edged pen it has today, is in [the
+video](https://youtu.be/3zXTnylonLs), writing a phrase in Russian:
 
 ![The pen writes "The quick brown fox jumps over the lazy dog"](./handwriting-en.gif)
 
