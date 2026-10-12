@@ -178,6 +178,7 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
     ESP_ERROR_CHECK(settings_init());
+    display_tune();
     settings_t settings;
     settings_get(&settings);
     /* with no time zone chosen the clock shows UTC until the weather or the place tells the zone */

@@ -5,6 +5,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "nvs.h"
 #include "sdkconfig.h"
 
 #include "bus/dgx_bus_protocols.h"
@@ -178,6 +179,42 @@ void display_show_glow(SemaphoreHandle_t hold, dgx_morph_glow_t *glow, float t, 
      */
     display_message_t message = {.glow = glow, .t = t, .x = x, .y = y, .hold = hold};
     show(&message);
+}
+
+void display_tune(void)
+{
+#if CONFIG_DGX_ENABLE_DSI
+    if (!display_bus || display_bus->bus_type != DGX_BUS_DSI) return;
+    /*
+     * When a piece of a picture goes by the hardware of the chip and when
+     * by the processor, and how much room the bus leaves before the scan of
+     * the display, is decided by numbers that depend on the chip, its
+     * memory and the display. The bus starts with those of the board dgx
+     * was written on, and measures the board at hand when asked: in memory
+     * of its own, nothing on the screen changes, 0.07 s. So it is done
+     * once, the numbers are kept, and at the next start the bus gets them
+     * from there. They are kept where any program of dgx on this board
+     * keeps them, as its example dsi_demo does: numbers of another panel
+     * or color depth the bus does not take, and the board is measured anew.
+     */
+    dgx_dsi_tuning_t tuning;
+    size_t           size = sizeof(tuning);
+    nvs_handle_t     nvs;
+    if (nvs_open("dgx", NVS_READWRITE, &nvs) != ESP_OK) {
+        ESP_LOGW(TAG, "No NVS: the DSI bus keeps the numbers it has");
+        return;
+    }
+    if (nvs_get_blob(nvs, "dsi_tuning", &tuning, &size) == ESP_OK && size == sizeof(tuning) && dgx_dsi_tune(display_bus, &tuning)) {
+        ESP_LOGI(TAG, "The DSI bus has the numbers of this board kept in NVS");
+    } else if (dgx_dsi_bench(display_bus, &tuning) && dgx_dsi_tune(display_bus, &tuning)) {
+        nvs_set_blob(nvs, "dsi_tuning", &tuning, sizeof(tuning));
+        nvs_commit(nvs);
+        ESP_LOGI(TAG, "The board is measured, the numbers of the DSI bus are kept in NVS");
+    } else {
+        ESP_LOGW(TAG, "The board could not be measured: the DSI bus keeps the numbers it has");
+    }
+    nvs_close(nvs);
+#endif
 }
 
 bool display_start(void)

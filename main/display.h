@@ -13,6 +13,13 @@
 dgx_screen_t *display_init(void);
 
 /*
+ * Once, when NVS is there and before anything else is drawn: a display on
+ * MIPI-DSI is given the numbers of this board, measured at the first start
+ * and kept in NVS. To any other display it means nothing.
+ */
+void display_tune(void);
+
+/*
  * Exactly one task works with the display, so neither a mutex nor a
  * semaphore stands at the bus. The others draw into virtual screens of their
  * own and tell it by a message what to show.

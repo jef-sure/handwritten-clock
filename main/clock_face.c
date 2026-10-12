@@ -204,16 +204,22 @@ static bool group_turn(group_t *group, const int *digits)
 }
 
 /*
- * t: how far the digits are on their way, 0 .. 1. Only the cells of the
- * digits that move are cleared and drawn anew, and only they are to be shown:
- * a digit on its way to another never leaves its cell. That is measured for
- * all pairs of digits of font0ss, in both sizes of the clock; a digit that
- * stays, and the colon, are left as they were drawn.
+ * A frame of the way that started at start_us and takes duration_us. How
+ * far the digits are on it is read from the clock when the band is back
+ * with this task: the wait for the band is not a part of the way. Only the
+ * cells of the digits that move are cleared and drawn anew, and only they
+ * are to be shown: a digit on its way to another never leaves its cell.
+ * That is measured for all pairs of digits of font0ss, in both sizes of the
+ * clock; a digit that stays, and the colon, are left as they were drawn.
+ * Returns true when the frame is the end of the way; drawn_us, when given,
+ * grows by what the frame took to draw.
  */
-static void group_frame(group_t *group, float t)
+static bool group_frame(group_t *group, int64_t start_us, int64_t duration_us, int64_t *drawn_us)
 {
     dgx_screen_t *band = group->band;
     display_take(group->hold);
+    int64_t now_us = esp_timer_get_time();
+    float   t = progress(start_us, now_us, duration_us);
     for (int i = 0; i < group->number; ++i) {
         const cell_t *cell = &group->cells[i];
         if (!cell->moving || !cell->morph || !cell->morph->length) continue;
@@ -221,6 +227,8 @@ static void group_frame(group_t *group, float t)
         dgx_hw_morph_draw_xy(cell->morph->letters[0], t, band, cell->x, group->base_y, group->scale_x, group->scale_y, group->pen, INK);
     }
     display_show_changed(group->hold, band, group->x, group->y, lut);
+    if (drawn_us) *drawn_us += esp_timer_get_time() - now_us;
+    return now_us - start_us >= duration_us;
 }
 
 /* The band as it is, all of it: its table of colors has changed. */
@@ -413,18 +421,14 @@ static void clock_face_task(void *arg)
         if (big_on || small_on) {
             /* each band goes its own way; the last frame of a way is its end */
             if (big_on) {
-                group_frame(&big, progress(big_start_us, now_us, BIG_MORPH_US));
-                drawing_us += esp_timer_get_time() - now_us;
                 ++frames;
-                if (now_us - big_start_us >= BIG_MORPH_US) {
+                if (group_frame(&big, big_start_us, BIG_MORPH_US, &drawing_us)) {
                     big_on = false;
-                    ESP_LOGD(TAG, "%d frames of the large band, a frame takes %lld us", frames, drawing_us / frames);
+                    ESP_LOGD(TAG, "%d frames of the large band in %lld ms, a frame takes %lld us to draw", frames,
+                             (esp_timer_get_time() - big_start_us) / 1000, drawing_us / frames);
                 }
             }
-            if (small_on) {
-                group_frame(&small, progress(small_start_us, now_us, SMALL_MORPH_US));
-                if (now_us - small_start_us >= SMALL_MORPH_US) small_on = false;
-            }
+            if (small_on && group_frame(&small, small_start_us, SMALL_MORPH_US, NULL)) small_on = false;
             vTaskDelay(1);
             continue;
         }
