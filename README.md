@@ -137,7 +137,7 @@ the screen of the demo drawn on a PC by the same dgx code that runs on the
 board; [the video](https://youtu.be/3zXTnylonLs) shows the board itself writing
 a phrase in Russian:
 
-![The pen writes "Hello, World!"](./handwriting-en.gif)
+![The pen writes "The quick brown fox jumps over the lazy dog"](./handwriting-en.gif)
 
 # Bézier curves on a microcontroller
 
