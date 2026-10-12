@@ -61,16 +61,33 @@ connected on it already. For another board the pins are set in
 
 The button is GPIO 0, the BOOT button of a CYD.
 
+The second board is a Guition JC1060P470: an ESP32-P4, a 7" 1024x600 display
+on a JD9165 controller over MIPI-DSI, WiFi and BLE in an ESP32-C6 beside it.
+The code is the same, the pins of its display are set in the same
+`main/display.c`, the button is GPIO 35. Tested on one board with a chip of
+revision 1.3.
+
 # Build
 
 ESP-IDF 5.2 or newer is needed. I built and tested under 5.5.4 and 6.0.1, on
 one board, and did not test under versions 5.2 to 5.4. The components,
-[dgx](https://github.com/jef-sure/esp32-component-dgx) 0.5 or newer included, are
+[dgx](https://github.com/jef-sure/esp32-component-dgx) 0.5.3 or newer included, are
 downloaded by the component manager.
 
     idf.py set-target esp32
     idf.py build
     idf.py -p /dev/ttyUSB0 flash monitor
+
+The board with an ESP32-P4 has another target: `idf.py set-target esp32p4`. It
+needs ESP-IDF 5.5 or newer, I built under 6.0.1. I did not test under 6.0.3
+and 6.1: by the
+[note of dgx](https://github.com/jef-sure/esp32-component-dgx/blob/main/docs/dsi-display-en.md)
+the exchange of bytes in the 2D DMA is broken there. The configuration is for
+a chip of a revision below 3; for a later one remove the line
+`CONFIG_ESP32P4_SELECTS_REV_LESS_V3` from `sdkconfig.defaults.esp32p4`. The
+firmware of the ESP32-C6 of the board must be of the same major version of
+esp_hosted as the clock has: with the factory 2.3.2 the setup of the network
+over BLE did not start until I updated it to 3.0.9.
 
 The list of time zones is made during the build from the tz database of the
 machine that builds: the script `misc/generate_tzones.py` takes it from
