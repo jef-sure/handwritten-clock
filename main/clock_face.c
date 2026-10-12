@@ -27,6 +27,13 @@ static const char *TAG = "clock_face";
  */
 #define BIG_MORPH_US   500000LL
 #define SMALL_MORPH_US 300000LL
+/*
+ * A way that is started this much late still ends with the second: a fifth
+ * of its time is a tenth of the way, and the jump over it is not seen.
+ */
+#define LATE(way_us) ((way_us) / 5)
+/* When nothing moves the clock is looked at this often: it may have been set. */
+#define LOOK_US 100000LL
 /* The pen is this many cells thick. */
 #define PEN_CELLS 9.0f
 /*
@@ -330,60 +337,107 @@ static void clock_face_task(void *arg)
         }
         ESP_LOGI(TAG, "%d:%02d is written in %.1f s", tm.tm_hour, tm.tm_min, (esp_timer_get_time() - start_us) * 1e-6f);
     }
+    int64_t big_start_us = 0, small_start_us = 0, drawing_us = 0;
+    bool    big_on = false, small_on = false; /* the band is on its way */
+    time_t  looked = 0, inked = 0; /* the second the digits of the large band, and the ink, were last looked at for */
+    int     frames = 0;
     for (;;) {
-        /* the way to the next second starts as long before it as the longest way takes */
         struct timeval now;
         gettimeofday(&now, NULL);
-        int64_t wait_us = 1000000LL - BIG_MORPH_US - now.tv_usec;
-        if (wait_us > 0) vTaskDelay(pdMS_TO_TICKS(wait_us / 1000) + 1);
-        gettimeofday(&now, NULL);
-        time_t    next = now.tv_sec + 1;
-        /* when that second comes, by the clock the frames go by */
-        int64_t second_us = esp_timer_get_time() + (1000000LL - now.tv_usec);
-        struct tm tm;
-        localtime_r(&next, &tm);
-        int digits[6];
-        digits_of(&tm, digits);
-        bool big_moves = group_turn(&big, digits);
-        bool small_moves = cfg.seconds == CLOCK_SECONDS_SMALL && group_turn(&small, digits + 4);
-        /* another ink: what does not move is shown in it as well */
-        float night = night_at(next);
-        if (cfg.on_night && night != night_told) {
-            night_told = night;
-            cfg.on_night(night);
+        /* the frames go by this clock: the other one may be set at any moment */
+        int64_t now_us = esp_timer_get_time();
+        /* the second in which a way of the large band ends, if it starts now */
+        time_t then = now.tv_sec + (now.tv_usec + BIG_MORPH_US) / 1000000LL;
+        if (!big_on && !small_on && then != inked) {
+            inked = then;
+            /* another ink: what does not move is shown in it as well */
+            float night = night_at(then);
+            if (cfg.on_night && night != night_told) {
+                night_told = night;
+                cfg.on_night(night);
+            }
+            uint16_t ink = ink_of(night);
+            if (ink != lut_ink) {
+                /* the table belongs to both bands: it changes when neither is on its way */
+                display_take(big.hold);
+                if (small.hold) display_take(small.hold);
+                make_lut(ink);
+                if (small.hold) display_give(small.hold);
+                display_give(big.hold);
+                /* both bands whole, in the new colors: the frames below show only the cells that move */
+                if (cfg.seconds == CLOCK_SECONDS_SMALL) group_show(&small);
+                group_show(&big);
+            }
         }
-        uint16_t ink = ink_of(night);
-        if (ink != lut_ink) {
-            /* the table belongs to both bands: it changes when neither is on its way */
-            display_take(big.hold);
-            if (small.hold) display_take(small.hold);
-            make_lut(ink);
-            if (small.hold) display_give(small.hold);
-            display_give(big.hold);
-            /* both bands whole, in the new colors: the frames below show only the cells that move */
-            if (cfg.seconds == CLOCK_SECONDS_SMALL) group_show(&small);
-            group_show(&big);
+        /*
+         * The large band goes to what the time is when its way ends. A
+         * minute that comes is seen as long before it as the way takes, and
+         * the way ends with the second. A clock that has been set, which
+         * the network does at any moment of a second, or another time zone,
+         * is seen at once: the way starts now and is as long as any other,
+         * not what is left of it till the second.
+         */
+        if (!big_on && then != looked) {
+            looked = then;
+            struct tm tm;
+            localtime_r(&then, &tm);
+            int digits[6];
+            digits_of(&tm, digits);
+            if (group_turn(&big, digits)) {
+                int64_t late_us = now.tv_usec + BIG_MORPH_US - 1000000LL;
+                big_start_us = late_us >= 0 && late_us <= LATE(BIG_MORPH_US) ? now_us - late_us : now_us;
+                big_on = true;
+                frames = 0;
+                drawing_us = 0;
+            }
         }
-        if (!big_moves && !small_moves) {
-            vTaskDelay(pdMS_TO_TICKS(BIG_MORPH_US / 1000));
+        /*
+         * Small seconds do not hurry after a clock that has been set: their
+         * way starts where it ends with the second, and when that moment is
+         * missed they wait for the next one.
+         */
+        if (cfg.seconds == CLOCK_SECONDS_SMALL && !small_on) {
+            int64_t late_us = now.tv_usec + SMALL_MORPH_US - 1000000LL;
+            if (late_us >= 0 && late_us <= LATE(SMALL_MORPH_US)) {
+                time_t    next = now.tv_sec + 1;
+                struct tm tm;
+                localtime_r(&next, &tm);
+                int digits[6];
+                digits_of(&tm, digits);
+                if (group_turn(&small, digits + 4)) {
+                    small_start_us = now_us - late_us;
+                    small_on = true;
+                }
+            }
+        }
+        if (big_on || small_on) {
+            /* each band goes its own way; the last frame of a way is its end */
+            if (big_on) {
+                group_frame(&big, progress(big_start_us, now_us, BIG_MORPH_US));
+                drawing_us += esp_timer_get_time() - now_us;
+                ++frames;
+                if (now_us - big_start_us >= BIG_MORPH_US) {
+                    big_on = false;
+                    ESP_LOGD(TAG, "%d frames of the large band, a frame takes %lld us", frames, drawing_us / frames);
+                }
+            }
+            if (small_on) {
+                group_frame(&small, progress(small_start_us, now_us, SMALL_MORPH_US));
+                if (now_us - small_start_us >= SMALL_MORPH_US) small_on = false;
+            }
+            vTaskDelay(1);
             continue;
         }
-
-        /* each band goes its own way, both ways end when the second comes */
-        int64_t big_start_us = second_us - BIG_MORPH_US, small_start_us = second_us - SMALL_MORPH_US;
-        int64_t now_us, drawing_us = 0;
-        int     frames = 0;
-        do {
-            now_us = esp_timer_get_time();
-            if (big_moves) group_frame(&big, progress(big_start_us, now_us, BIG_MORPH_US));
-            if (small_moves && now_us >= small_start_us) group_frame(&small, progress(small_start_us, now_us, SMALL_MORPH_US));
-            drawing_us += esp_timer_get_time() - now_us;
-            ++frames;
-            vTaskDelay(1);
-        } while (now_us < second_us);
-        if (big_moves && tm.tm_sec == 0) {
-            ESP_LOGD(TAG, "%d:%02d: %d frames, a frame takes %lld us", tm.tm_hour, tm.tm_min, frames, drawing_us / frames);
+        /* nothing moves: till a way may start, and not for long, for the clock may be set meanwhile */
+        int64_t wait_us = 1000000LL - BIG_MORPH_US - now.tv_usec;
+        if (wait_us <= 0) wait_us += 1000000LL;
+        if (cfg.seconds == CLOCK_SECONDS_SMALL) {
+            int64_t small_us = 1000000LL - SMALL_MORPH_US - now.tv_usec;
+            if (small_us <= 0) small_us += 1000000LL;
+            if (small_us < wait_us) wait_us = small_us;
         }
+        if (wait_us > LOOK_US) wait_us = LOOK_US;
+        vTaskDelay(pdMS_TO_TICKS(wait_us / 1000) + 1);
     }
 }
 
