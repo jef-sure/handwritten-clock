@@ -221,9 +221,9 @@ neighbors.
 
 A symbol in the editor has four sets of elements, and each has its own part to
 play in writing. The main strokes are the drawing of the letter itself, in the
-order the hand makes them. The deferred strokes are what the hand adds once the
+order the hand makes them. The postponed strokes are what the hand adds once the
 word is finished: the dots over "ё," the crossbar of "t," the bar of "7." The
-entry connection and the exit connection are the strokes by which the pen
+begin connection and the end connection are the strokes by which the pen
 arrives at the letter from the previous one and leaves for the next; they are
 not part of the letter's drawing, they are transitions. Lowercase letters have
 connections on both sides, capitals only on the way out, and "V," "W," the
@@ -252,7 +252,7 @@ In joined-up writing the end of one letter and the start of the next are joined
 by a single curve; digits are written separately and have no connections.
 
 I tried to get by with as few curves per symbol as possible, even at the cost
-of an exact shape: the main drawing, not counting connections and deferred
+of an exact shape: the main drawing, not counting connections and postponed
 strokes, takes three elements on average and seven at most. There are three
 reasons. The fewer the curves, the less there is to compute on the
 microcontroller. The simpler the morphing: turning three curves into four is
@@ -261,22 +261,23 @@ extremely laborious work, one Latin font took me a month, and by the end I was
 tired and could feel I had run out of steam.
 
 The letter "i" in the editor. There is one main stroke, and the dot is stored
-separately, as a deferred stroke. To the left and right of the letter you can
-see its connections, entry and exit:
+separately, as a postponed stroke. To the left and right of the letter you can
+see its connections, begin and end:
 
-![The editor: the letter "i," the dot is a deferred stroke](./editor-dot.png "The editor: the letter i, the dot is a deferred stroke")
+![The editor: the letter "i," the dot is a postponed stroke](./editor-dot.png "The editor: the letter i, the dot is a postponed stroke")
 
 ## Joining letters
 
-A letter's connection is drawn by hand in the editor, separately for entry and
-for exit, and is made of ordinary strokes of the font. How to get one smooth
-curve out of the exit connection of one letter and the entry connection of the
+A letter's connections are drawn by hand in the editor, one for the way in and
+one for the way out, and are made of ordinary strokes of the font. How to get
+one smooth curve out of the end connection of one letter and the begin
+connection of the
 next is something I never did solve in 2022: two cubic curves have eight
 control points, one has four, and everything I tried gave either a kink or a
 loop. That is where the work stopped.
 
-In the end the solution is this. The last stroke of the exit connection and the
-first stroke of the next letter's entry connection are merged into one. Their
+In the end the solution is this. The last stroke of the end connection and the
+first stroke of the next letter's begin connection are merged into one. Their
 two ends, the ones that meet in the gap between the letters, drop out of the
 eight points, and the two control points next to those ends merge into one,
 halfway between them. Five points remain: the ends of the connections, the
@@ -294,25 +295,25 @@ other strokes of their connections; dashed, the two strokes being merged, with
 their control points; dotted, the five-point curve; black, the cubic the joint
 is drawn with.
 
-For "и" and "м" the ends of the connections meet at one point, and the joint
-follows the drawn connections almost exactly:
+For "i" and "m" the ends of the connections meet at one point, and the joint
+stays close to the drawn connections:
 
-![The joint of the letters "и" and "м": the ends of the connections meet, the joint follows them](./joint-im.png "The joint of the letters и and м: the ends of the connections meet, the joint follows them")
+![The joint of the letters "i" and "m": the ends of the connections meet, the joint stays close to them](./joint-im-en.png "The joint of the letters i and m: the ends of the connections meet, the joint stays close to them")
 
-For "к" and "е" they don't meet: the tail of "к" is drawn upward, toward `a3`,
-while the start of the connection of "е," `b0`, lies lower. If the pen followed
-the tail to its end and then went into "е," you would get a loop. The joint
+For "k" and "e" they don't meet: the tail of "k" is drawn upward, toward `a3`,
+while the start of the connection of "e," `b0`, lies lower. If the pen followed
+the tail to its end and then went into "e," you would get a loop. The joint
 throws out both ends and goes straight across, and the five-point reference and
 the cubic nearly coincide, which is the whole point of the fit:
 
-![The joint of the letters "к" and "е": the ends of the connections don't meet, the joint goes straight across](./joint-ke.png "The joint of the letters к and е: the ends of the connections don't meet, the joint goes straight across")
+![The joint of the letters "k" and "e": the ends of the connections don't meet, the joint goes straight across](./joint-ke-en.png "The joint of the letters k and e: the ends of the connections don't meet, the joint goes straight across")
 
 The letter "ж" with its connections. Black is the strokes themselves on the
 grid; the blue dots and thin lines are the control points of the curves. The
-entry connection comes up to the letter from the left, and the exit connection
+begin connection comes up to the letter from the left, and the end connection
 leaves it up and to the right:
 
-![The editor: the letter "ж" with its entry and exit connections](./editor-letter.png "The editor: the letter ж with its entry and exit connections")
+![The editor: the letter "ж" with its begin and end connections](./editor-letter.png "The editor: the letter ж with its begin and end connections")
 
 ## Units and scale
 
