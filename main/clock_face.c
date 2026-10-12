@@ -284,6 +284,7 @@ static void group_write(group_t *group)
 {
     dgx_screen_t *band = group->band;
     dgx_hw_pace_t pace = dgx_hw_pace(font, BEND_EFFORT);
+    int64_t       pace_us = 0; /* of the pictures the display is given, see display_pace() */
     /* the band is held from here to the end, but while what is written so far is shown */
     display_take(group->hold);
     dgx_fill_rectangle(band, 0, 0, band->width, band->height, 0);
@@ -307,6 +308,7 @@ static void group_write(group_t *group)
             /* only where the pen has been since the last time */
             display_show_changed(group->hold, band, group->x, group->y, lut);
             vTaskDelay(1);
+            display_pace(&pace_us);
             display_take(group->hold);
         } while (!finished);
     }
@@ -349,6 +351,7 @@ static void clock_face_task(void *arg)
     bool    big_on = false, small_on = false; /* the band is on its way */
     time_t  looked = 0, inked = 0; /* the second the digits of the large band, and the ink, were last looked at for */
     int     frames = 0;
+    int64_t pace_us = 0; /* of the pictures the display is given, see display_pace() */
     for (;;) {
         struct timeval now;
         gettimeofday(&now, NULL);
@@ -419,6 +422,7 @@ static void clock_face_task(void *arg)
             }
         }
         if (big_on || small_on) {
+            display_pace(&pace_us);
             /* each band goes its own way; the last frame of a way is its end */
             if (big_on) {
                 ++frames;

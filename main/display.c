@@ -35,21 +35,6 @@ typedef struct {
 static dgx_screen_t        *display;
 static dgx_bus_protocols_t *display_bus;
 static QueueHandle_t        queue;
-/* When each virtual screen may be drawn anew, on a display that shows by frames: the low 32 bits of the time. */
-static struct {
-    SemaphoreHandle_t hold;
-    uint32_t          next_us;
-} paces[MESSAGES];
-
-/* How long the display takes for a frame, in microseconds; 0: it does not show by frames, as one behind SPI. */
-static uint32_t frame_us(void)
-{
-#if CONFIG_DGX_ENABLE_DSI
-    if (display_bus && display_bus->bus_type == DGX_BUS_DSI) return dgx_dsi_frame_us(display_bus);
-#endif
-    return 0;
-}
-
 static void put(const display_message_t *message)
 {
     if (message->band && message->width) {
@@ -87,51 +72,34 @@ SemaphoreHandle_t display_hold_create(void)
 {
     /* a binary semaphore as the word that the screen is back, see display.h; made empty, so the word is said once here */
     SemaphoreHandle_t hold = xSemaphoreCreateBinary();
-    if (!hold) return NULL;
-    xSemaphoreGive(hold);
-    for (int i = 0; i < MESSAGES; ++i) {
-        if (paces[i].hold) continue;
-        paces[i].hold = hold;
-        return hold;
-    }
-    ESP_LOGW(TAG, "More virtual screens than %d: this one is drawn as often as its task likes", MESSAGES);
+    if (hold) xSemaphoreGive(hold);
     return hold;
-}
-
-/*
- * Behind SPI a screen takes long enough to go to the display, and nobody
- * draws faster than that. A display that shows by frames takes a picture at
- * once, and of what is drawn in the time of a frame it shows the last. So
- * there the time is guarded: a screen is not drawn anew sooner than a frame
- * after it was drawn last.
- */
-static void pace(SemaphoreHandle_t hold)
-{
-    uint32_t period = frame_us();
-    if (!period) return;
-    for (int i = 0; i < MESSAGES; ++i) {
-        if (paces[i].hold != hold) continue;
-        uint32_t now = (uint32_t)esp_timer_get_time();
-        int32_t  wait_us = (int32_t)(paces[i].next_us - now);
-        /* more than a frame it cannot be: then the count of the time has gone round */
-        if (wait_us > 0 && wait_us <= (int32_t)period) {
-            do {
-                vTaskDelay(1);
-            } while ((int32_t)(paces[i].next_us - (uint32_t)esp_timer_get_time()) > 0);
-            /* from moment to moment, not from waking to waking: a tick of the system late does not add up */
-            paces[i].next_us += period;
-        } else {
-            /* the screen has stood for a while: its pace starts anew */
-            paces[i].next_us = now + period;
-        }
-        return;
-    }
 }
 
 void display_take(SemaphoreHandle_t hold)
 {
-    pace(hold);
     xSemaphoreTake(hold, portMAX_DELAY);
+}
+
+void display_pace(int64_t *next_us)
+{
+    /* how long a frame takes the bus of a display on MIPI-DSI tells; a display behind SPI has no frames */
+    uint32_t period = 0;
+#if CONFIG_DGX_ENABLE_DSI
+    if (display_bus && display_bus->bus_type == DGX_BUS_DSI) period = dgx_dsi_frame_us(display_bus);
+#endif
+    if (!period) return;
+    int64_t now_us = esp_timer_get_time();
+    if (*next_us <= now_us) {
+        /* the first picture of a row, or one that took longer than a frame: the count starts here */
+        *next_us = now_us + period;
+        return;
+    }
+    do {
+        vTaskDelay(1);
+    } while (esp_timer_get_time() < *next_us);
+    /* from moment to moment, not from waking to waking: a tick of the system late does not add up */
+    *next_us += period;
 }
 
 void display_give(SemaphoreHandle_t hold)

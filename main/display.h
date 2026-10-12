@@ -40,15 +40,15 @@ void display_tune(void);
  *     when the screen is on the display, and that is all it does with it;
  *   - display_give() is for the one who took the screen and has nothing to
  *     show.
- * A mutex stood here before. It was taken by both sides, the display task
- * waited for it, and a task that came back to its screen before the display
- * task had looked at the message drew over what was asked to be shown.
+ * A mutex stood here before. It was taken by both sides, and the display
+ * task waited for it. It guarded no data the two shared: it stood for the
+ * same handing over, which is now what the code says.
  *
- * So nobody draws faster than the display takes pictures. Behind SPI a
- * screen takes its time to get there. A display that shows by frames, one
- * on MIPI-DSI, takes a picture at once: there display_take() guards the
- * time, and a screen is not drawn anew sooner than a frame after it was
- * drawn last.
+ * Behind SPI nobody draws faster than the display takes pictures: a screen
+ * takes its time to get there. A display that shows by frames, one on
+ * MIPI-DSI, takes a picture at once, and of what comes in the time of a
+ * frame it shows the last. There the one who draws keeps the pace itself,
+ * as a player of a video does: see display_pace().
  */
 bool display_start(void);
 
@@ -58,6 +58,15 @@ SemaphoreHandle_t display_hold_create(void);
 void display_take(SemaphoreHandle_t hold);
 /* After it, when there is nothing to show. */
 void display_give(SemaphoreHandle_t hold);
+
+/*
+ * For one who draws picture after picture, at the start of each: sleeps
+ * until a frame of the display has passed since the picture before was
+ * started. *next_us is the count of the one who draws, 0 before its first
+ * picture; a row of pictures that starts after a while starts the count
+ * anew. Behind SPI it returns at once.
+ */
+void display_pace(int64_t *next_us);
 
 /*
  * After it, when there is: the screen goes to the display task, which is

@@ -271,9 +271,10 @@ static void write_in_band(int x, int y, const char *text, float sx, float sy, ui
     dgx_hw_pace_t    pace = dgx_hw_pace(font, BEND_EFFORT);
     dgx_hw_writing_t writing;
     dgx_hw_writing_begin_xy(&writing, band, x, y, font, text, sx, sy, pen, paint, false, &pace);
-    int64_t start_us = esp_timer_get_time();
+    int64_t start_us = esp_timer_get_time(), pace_us = 0;
     bool    finished;
     do {
+        display_pace(&pace_us);
         display_take(band_hold);
         finished = dgx_hw_writing_draw_to(&writing, (paint ? WRITE_TEMPO : ERASE_TEMPO) * (esp_timer_get_time() - start_us) * 1e-6f);
         band_present(ink, false);
@@ -358,10 +359,11 @@ static void turn(const shown_t *next)
     /* a symbol that stays is drawn once more, as bright as the hour lets */
     if (relight && !symbol_changes && !recolor && symbol) symbol_frame(symbol, 1, color);
     if (symbol_changes || recolor) {
-        int64_t start_us = esp_timer_get_time(), now_us, symbol_us = 0, longest_us = 0;
+        int64_t start_us = esp_timer_get_time(), now_us, symbol_us = 0, longest_us = 0, pace_us = 0;
         int     frames = 0;
         float   t;
         do {
+            display_pace(&pace_us);
             now_us = esp_timer_get_time();
             t = dgx_morph_progress(start_us, now_us, MORPH_US);
             float eased = dgx_morph_ease(DGX_MORPH_SMOOTHSTEP, t);
