@@ -85,7 +85,7 @@ static void display_task(void *arg)
 
 SemaphoreHandle_t display_hold_create(void)
 {
-    /* not a lock: the word that the screen is with its owner, there from the start */
+    /* a binary semaphore as the word that the screen is back, see display.h; made empty, so the word is said once here */
     SemaphoreHandle_t hold = xSemaphoreCreateBinary();
     if (!hold) return NULL;
     xSemaphoreGive(hold);

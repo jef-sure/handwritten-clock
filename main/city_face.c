@@ -233,10 +233,6 @@ bool city_face_start(const city_face_config_t *config)
     if (!hold) return false;
     /* a batch that is never closed: the band keeps count of where it has been drawn into */
     dgx_screen_progress_up(band);
-    hold = display_hold_create();
-    if (!hold) return false;
-    /* a batch that is never closed: the band keeps count of where it has been drawn into */
-    dgx_screen_progress_up(band);
     /* paper is color 0 of the band and ink is color 255 */
     for (int i = 0; i < 256; ++i) {
         int r = ((cfg.paper >> 11) & 31) + (((cfg.ink >> 11) & 31) - ((cfg.paper >> 11) & 31)) * i / 255;

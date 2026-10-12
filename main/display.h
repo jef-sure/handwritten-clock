@@ -26,10 +26,23 @@ void display_tune(void);
  *
  * Nothing is locked at a virtual screen either: it has one owner at a time.
  * The task that draws into it has it. A message to show it hands it to the
- * display task, and that one gives it back when the screen is on the
+ * display task, and that one hands it back when the screen is on the
  * display. A message is sent and its sender goes on with whatever else it
  * has to do; it waits only when it comes back to a screen that has not come
- * back yet. A "hold" is the word that the screen is with its owner.
+ * back yet.
+ *
+ * The word that a screen is back is a binary semaphore of FreeRTOS, one a
+ * screen, called a "hold" here. It is used as a word, not as a lock:
+ *   - the task that draws takes it before drawing: the screen is with it;
+ *   - sending a message, it does not give it: the screen goes with the
+ *     message;
+ *   - the display task never takes it and never waits for it: it gives it
+ *     when the screen is on the display, and that is all it does with it;
+ *   - display_give() is for the one who took the screen and has nothing to
+ *     show.
+ * A mutex stood here before. It was taken by both sides, the display task
+ * waited for it, and a task that came back to its screen before the display
+ * task had looked at the message drew over what was asked to be shown.
  *
  * So nobody draws faster than the display takes pictures. Behind SPI a
  * screen takes its time to get there. A display that shows by frames, one
@@ -39,7 +52,7 @@ void display_tune(void);
  */
 bool display_start(void);
 
-/* The hold of one virtual screen. */
+/* The hold of one virtual screen; the screen is with whoever makes it. */
 SemaphoreHandle_t display_hold_create(void);
 /* Before drawing into the screen, or changing its table of colors: waits until the screen is back. */
 void display_take(SemaphoreHandle_t hold);
