@@ -265,14 +265,14 @@ static void weather_task(void *arg)
         tell(&told, lacks);
         if (lacks) {
             vTaskDelay(pdMS_TO_TICKS(retry_ms));
-            if (retry_ms < WEATHER_PERIOD_MS) retry_ms *= 2;
+            retry_ms = retry_ms * 2 < WEATHER_PERIOD_MS ? retry_ms * 2 : WEATHER_PERIOD_MS;
             continue;
         }
         weather_now_t now = {0};
         bool          got = weather_get(&settings, &location, &now);
         if (got) listener(&now);
         vTaskDelay(pdMS_TO_TICKS(got ? WEATHER_PERIOD_MS : retry_ms));
-        retry_ms = got ? WEATHER_RETRY_MS : retry_ms < WEATHER_PERIOD_MS ? retry_ms * 2 : retry_ms;
+        retry_ms = got ? WEATHER_RETRY_MS : retry_ms * 2 < WEATHER_PERIOD_MS ? retry_ms * 2 : WEATHER_PERIOD_MS;
     }
 }
 #endif
