@@ -371,7 +371,7 @@ static void turn(const shown_t *next)
                 band_present(ink, true);
             }
             if (symbol && (symbol_changes || recolor)) {
-                /* drawn and shown: the frame is on the display when this is back */
+                /* drawn and sent; the wait for the frame before it to be shown is in this time as well */
                 int64_t frame_us = esp_timer_get_time();
                 symbol_frame(symbol, t, ink);
                 frame_us = esp_timer_get_time() - frame_us;

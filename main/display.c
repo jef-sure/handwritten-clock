@@ -1,11 +1,16 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
+#include "bus/dgx_bus_protocols.h"
+#if CONFIG_DGX_ENABLE_DSI
+#include "bus/dgx_dsi_esp32.h"
+#endif
 #include "drivers/vscreen.h"
 
 #include "display.h"
@@ -20,19 +25,32 @@ typedef struct {
     float             t;
     int               x, y;
     int               left, top, width, height; /* the part of the virtual screen to show; width 0: all of it */
-    SemaphoreHandle_t hold; /* of the virtual screen: held while it goes to the display */
-    TaskHandle_t      waiter; /* told when it has gone; NULL: nobody waits */
+    SemaphoreHandle_t hold; /* of the virtual screen: it comes with the message and goes back when the screen is on the display */
 } display_message_t;
 
-/* as many messages may wait as there are virtual screens, and some more */
+/* as many messages may wait as there are virtual screens: a screen that is on its way cannot be sent once more */
 #define MESSAGES 8
 
-static dgx_screen_t *display;
-static QueueHandle_t queue;
+static dgx_screen_t        *display;
+static dgx_bus_protocols_t *display_bus;
+static QueueHandle_t        queue;
+/* When each virtual screen may be drawn anew, on a display that shows by frames: the low 32 bits of the time. */
+static struct {
+    SemaphoreHandle_t hold;
+    uint32_t          next_us;
+} paces[MESSAGES];
+
+/* How long the display takes for a frame, in microseconds; 0: it does not show by frames, as one behind SPI. */
+static uint32_t frame_us(void)
+{
+#if CONFIG_DGX_ENABLE_DSI
+    if (display_bus && display_bus->bus_type == DGX_BUS_DSI) return dgx_dsi_frame_us(display_bus);
+#endif
+    return 0;
+}
 
 static void put(const display_message_t *message)
 {
-    xSemaphoreTake(message->hold, portMAX_DELAY);
     if (message->band && message->width) {
         dgx_vscreen8_region_to_screen16(display, message->x + message->left, message->y + message->top, message->band, message->left,
                                         message->top, message->width, message->height, message->lut, false);
@@ -40,8 +58,8 @@ static void put(const display_message_t *message)
         dgx_vscreen8_to_screen16(display, message->x, message->y, message->band, message->lut, false);
     }
     if (message->glow) dgx_morph_glow_present(message->glow, message->t, display, message->x, message->y);
+    /* the screen is its owner's again */
     xSemaphoreGive(message->hold);
-    if (message->waiter) xTaskNotifyGive(message->waiter);
 }
 
 static void display_task(void *arg)
@@ -51,12 +69,10 @@ static void display_task(void *arg)
     for (;;) {
         if (!xQueueReceive(queue, &message, portMAX_DELAY)) continue;
         /*
-         * What waits by now goes to the display as one batch. A display
-         * that shows a batch whole from its next frame on takes one batch a
-         * frame: the time, the weather and the name of the place, each a
-         * batch of its own, would wait a frame for one another. To a display
-         * behind SPI a batch means nothing. Only what waits now is taken:
-         * those who ask do not stop asking.
+         * What waits by now goes to the display as one batch: the time, the
+         * weather and the name of the place that came together are one
+         * picture. To a display behind SPI a batch means nothing. Only what
+         * waits now is taken: those who ask do not stop asking.
          */
         int more = (int)uxQueueMessagesWaiting(queue);
         dgx_screen_progress_up(display);
@@ -68,11 +84,52 @@ static void display_task(void *arg)
 
 SemaphoreHandle_t display_hold_create(void)
 {
-    return xSemaphoreCreateMutex();
+    /* not a lock: the word that the screen is with its owner, there from the start */
+    SemaphoreHandle_t hold = xSemaphoreCreateBinary();
+    if (!hold) return NULL;
+    xSemaphoreGive(hold);
+    for (int i = 0; i < MESSAGES; ++i) {
+        if (paces[i].hold) continue;
+        paces[i].hold = hold;
+        return hold;
+    }
+    ESP_LOGW(TAG, "More virtual screens than %d: this one is drawn as often as its task likes", MESSAGES);
+    return hold;
+}
+
+/*
+ * Behind SPI a screen takes long enough to go to the display, and nobody
+ * draws faster than that. A display that shows by frames takes a picture at
+ * once, and of what is drawn in the time of a frame it shows the last. So
+ * there the time is guarded: a screen is not drawn anew sooner than a frame
+ * after it was drawn last.
+ */
+static void pace(SemaphoreHandle_t hold)
+{
+    uint32_t period = frame_us();
+    if (!period) return;
+    for (int i = 0; i < MESSAGES; ++i) {
+        if (paces[i].hold != hold) continue;
+        uint32_t now = (uint32_t)esp_timer_get_time();
+        int32_t  wait_us = (int32_t)(paces[i].next_us - now);
+        /* more than a frame it cannot be: then the count of the time has gone round */
+        if (wait_us > 0 && wait_us <= (int32_t)period) {
+            do {
+                vTaskDelay(1);
+            } while ((int32_t)(paces[i].next_us - (uint32_t)esp_timer_get_time()) > 0);
+            /* from moment to moment, not from waking to waking: a tick of the system late does not add up */
+            paces[i].next_us += period;
+        } else {
+            /* the screen has stood for a while: its pace starts anew */
+            paces[i].next_us = now + period;
+        }
+        return;
+    }
 }
 
 void display_take(SemaphoreHandle_t hold)
 {
+    pace(hold);
     xSemaphoreTake(hold, portMAX_DELAY);
 }
 
@@ -81,11 +138,12 @@ void display_give(SemaphoreHandle_t hold)
     xSemaphoreGive(hold);
 }
 
+/* The screen goes with the message: it is not its sender's until the display task gives it back. */
 static void show(display_message_t *message)
 {
-    xSemaphoreGive(message->hold);
     if (!queue) {
         ESP_LOGE(TAG, "Nothing is shown: the display task is not started");
+        xSemaphoreGive(message->hold);
         return;
     }
     xQueueSend(queue, message, portMAX_DELAY);
@@ -114,13 +172,12 @@ void display_show_glow(SemaphoreHandle_t hold, dgx_morph_glow_t *glow, float t, 
 {
     /*
      * Showing a frame of dots takes it away: the dots of the next one are
-     * drawn into an empty frame. So the next one is not drawn until this one
-     * is shown. Two frames drawn one over another while the display is busy
-     * would be shown as one, and then as nothing.
+     * drawn into an empty frame. Two frames drawn one over another would be
+     * shown as one, and then as nothing. That cannot be: the frame is not
+     * its owner's until it has been shown.
      */
-    display_message_t message = {.glow = glow, .t = t, .x = x, .y = y, .hold = hold, .waiter = queue ? xTaskGetCurrentTaskHandle() : NULL};
+    display_message_t message = {.glow = glow, .t = t, .x = x, .y = y, .hold = hold};
     show(&message);
-    if (message.waiter) ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 }
 
 bool display_start(void)
@@ -169,6 +226,7 @@ dgx_screen_t *display_init(void)
     gpio_set_direction((gpio_num_t)LCD_PIN_NUM_BACKLIGHT, GPIO_MODE_OUTPUT);
     gpio_set_level((gpio_num_t)LCD_PIN_NUM_BACKLIGHT, 1);
     display = screen;
+    display_bus = bus;
     return screen;
 }
 
@@ -212,6 +270,7 @@ dgx_screen_t *display_init(void)
     /* landscape */
     dgx_ili9341_orientation(screen, DgxScreenRightLeft, DgxScreenTopBottom, true);
     display = screen;
+    display_bus = bus;
     return screen;
 }
 
