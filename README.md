@@ -1,6 +1,24 @@
 Bringing an ESP32 to Life: A Handwritten Font and Morphing
 ==========================================================
 
+<!--
+Titles to choose from, for the article and for the project page on Hackaday.io. The subject is the handwritten
+font; the clock is its first application. The title should show motion: a pen that writes.
+
+  A Handwritten Font That a Pen Writes as You Watch
+  A Pen Writes on an ESP32: a Handwritten Font, Stroke by Stroke
+  Handwriting in Motion: a Font Written by a Pen on an ESP32
+  A Font That a Pen Writes, Stroke by Stroke, on an ESP32
+  A Handwritten Font Drawn by a Pen, on an ESP32
+  A Handwritten Font That Writes Itself, on an ESP32
+  Bringing an ESP32 to Life: A Handwritten Font and Morphing        (the one above; "living water" of the Russian title)
+
+The line under the title of the project page:
+
+  A font format that stores the path of the pen, an editor for it, and a library that writes text stroke by
+  stroke and morphs it on a microcontroller. A weather clock is the first thing built on it.
+-->
+
 ![A weather clock in a handwritten font](./clock.jpg)
 
 [Русская версия](./README-rus.md)
