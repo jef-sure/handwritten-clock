@@ -270,7 +270,8 @@ static void write_in_band(int x, int y, const char *text, float sx, float sy, ui
 {
     dgx_hw_pace_t    pace = dgx_hw_pace(font, BEND_EFFORT);
     dgx_hw_writing_t writing;
-    dgx_hw_writing_begin_xy(&writing, band, x, y, font, text, sx, sy, pen, paint, false, &pace);
+    /* the edge of the pen is soft; with the paper for paint such a pen takes the ink off every pixel it touches */
+    dgx_hw_writing_begin_xy(&writing, band, x, y, font, text, sx, sy, DGX_PEN_SOFT | pen, paint, false, &pace);
     int64_t start_us = esp_timer_get_time(), pace_us = 0;
     bool    finished;
     do {

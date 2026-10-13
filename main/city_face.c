@@ -152,7 +152,8 @@ static void write_name(void)
 
     dgx_hw_pace_t    pace = dgx_hw_pace(font, BEND_EFFORT);
     dgx_hw_writing_t writing;
-    dgx_hw_writing_begin_xy(&writing, band, x, base, font, written, scale_x, scale_y, pen, INK, true, &pace);
+    /* a soft edge: at this size a hard pen of two pixels runs the letters together */
+    dgx_hw_writing_begin_xy(&writing, band, x, base, font, written, scale_x, scale_y, DGX_PEN_SOFT | pen, INK, true, &pace);
     int64_t start_us = esp_timer_get_time(), pace_us = 0;
     bool    finished;
     do {

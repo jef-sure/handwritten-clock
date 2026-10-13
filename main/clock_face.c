@@ -34,7 +34,11 @@ static const char *TAG = "clock_face";
 #define LATE(way_us) ((way_us) / 5)
 /* When nothing moves the clock is looked at this often: it may have been set. */
 #define LOOK_US 100000LL
-/* The pen is this many cells thick. */
+/*
+ * The pen is this many cells thick. Its edge is soft: the bands are screens of
+ * 8 bits a pixel, where a byte is an amount of ink, and a pixel on the edge of
+ * a line gets the share of the ink the pen covers of it.
+ */
 #define PEN_CELLS 9.0f
 /*
  * The first time is written by a pen, digit after digit, as the name of the
@@ -224,7 +228,8 @@ static bool group_frame(group_t *group, int64_t start_us, int64_t duration_us, i
         const cell_t *cell = &group->cells[i];
         if (!cell->moving || !cell->morph || !cell->morph->length) continue;
         dgx_fill_rectangle(band, cell->x, 0, cell->w, band->height, 0);
-        dgx_hw_morph_draw_xy(cell->morph->letters[0], t, band, cell->x, group->base_y, group->scale_x, group->scale_y, group->pen, INK);
+        dgx_hw_morph_draw_xy(cell->morph->letters[0], t, band, cell->x, group->base_y, group->scale_x, group->scale_y, DGX_PEN_SOFT | group->pen,
+                             INK);
     }
     display_show_changed(group->hold, band, group->x, group->y, lut);
     if (drawn_us) *drawn_us += esp_timer_get_time() - now_us;
@@ -300,7 +305,7 @@ static void group_write(group_t *group)
         char             text[2] = {(char)('0' + cell->shown), 0};
         dgx_hw_writing_t writing;
         dgx_hw_writing_begin_xy(&writing, band, cell->x + (int)lroundf(group->shift[cell->shown] * group->scale_x), group->base_y, font, text,
-                                group->scale_x, group->scale_y, group->pen, INK, false, &pace);
+                                group->scale_x, group->scale_y, DGX_PEN_SOFT | group->pen, INK, false, &pace);
         int64_t start_us = esp_timer_get_time();
         bool    finished;
         do {

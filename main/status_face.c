@@ -109,7 +109,8 @@ static void pen_begin(sign_t *sign, pen_stage_t stage, int64_t now_us)
     static dgx_hw_pace_t pace;
     pace = dgx_hw_pace(font, BEND_EFFORT);
     int x = sign->x + (int)lroundf((place - (right - left + 1) * scale) / 2 - left * scale);
-    dgx_hw_writing_begin_xy(&sign->writing, band, x, base_y, font, sign->text, scale, scale, pen, stage == PEN_WRITES ? INK : 0, false, &pace);
+    dgx_hw_writing_begin_xy(&sign->writing, band, x, base_y, font, sign->text, scale, scale, DGX_PEN_SOFT | pen, stage == PEN_WRITES ? INK : 0, false,
+                            &pace);
 }
 
 /* A letter: written by the pen, standing, taken away by it, away for a while, and again. */
@@ -153,7 +154,7 @@ static void wifi_draw(sign_t *sign, int arcs)
             {(int16_t)cx, (int16_t)lroundf(cy - r * 1.4142f)},
             {(int16_t)lroundf(cx + r * 0.7071f), (int16_t)lroundf(cy - r * 0.7071f)},
         };
-        dgx_draw_bezier3(band, arc, 0, pen, INK);
+        dgx_draw_bezier3(band, arc, 0, DGX_PEN_SOFT | pen, INK);
     }
     sign->arcs = arcs;
     sign->drawn = true;
