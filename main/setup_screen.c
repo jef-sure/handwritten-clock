@@ -8,6 +8,7 @@
 #include "dgx_bits.h"
 #include "dgx_draw.h"
 #include "dgx_hw_font.h"
+#include "drivers/vscreen.h"
 #include "fonts/font0ss.h"
 
 #include "setup_screen.h"
@@ -37,17 +38,36 @@ static void draw_line_of_text(dgx_screen_t *screen, int y, int height, const cha
 {
     dgx_font_t *font = font0ss();
     int         left, top, right, bottom;
-    dgx_fill_rectangle(screen, 0, y, screen->width, height, dgx_rgb_to_16(255, 255, 255));
-    if (!text || !dgx_hw_text_box(font, text, &left, &top, &right, &bottom)) return;
+    uint16_t    white = dgx_rgb_to_16(255, 255, 255);
+    if (!text || !dgx_hw_text_box(font, text, &left, &top, &right, &bottom)) {
+        dgx_fill_rectangle(screen, 0, y, screen->width, height, white);
+        return;
+    }
     float by_width = (float)(screen->width - 2 * TEXT_MARGIN) / (right - left + 1);
     float by_height = (float)(height - 4) / font->hw->symbol_size_y;
     float scale = by_width < by_height ? by_width : by_height;
     int   pen = (int)lroundf(scale * TEXT_PEN_CELLS);
     if (pen < TEXT_PEN_LEAST) pen = TEXT_PEN_LEAST;
     /* the line of the font stands in the strip, whatever letters the text has */
-    int base = y + (int)lroundf((height - font->hw->symbol_size_y * scale) / 2 + font->hw->base_line * scale);
+    int base = (int)lroundf((height - font->hw->symbol_size_y * scale) / 2 + font->hw->base_line * scale);
     int x = (int)lroundf((screen->width - (right - left + 1) * scale) / 2 - left * scale);
-    dgx_hw_draw_text(screen, x, base, font, text, scale, pen, 0, true);
+    /*
+     * A pen has a soft edge where it writes with ink: the strip is a screen of
+     * 8 bits, the amount of ink in a pixel, and goes to the display through a
+     * table from the white of the paper to black.
+     */
+    dgx_screen_t *strip = dgx_vscreen_init(screen->width, height, 8, DgxScreenRGB);
+    if (!strip) {
+        /* no memory for it: the same line by a hard pen, straight on the display */
+        dgx_fill_rectangle(screen, 0, y, screen->width, height, white);
+        dgx_hw_draw_text(screen, x, y + base, font, text, scale, pen, 0, true);
+        return;
+    }
+    static uint16_t lut[256];
+    for (int i = 0; i < 256; ++i) lut[i] = (uint16_t)dgx_rgb_to_16(255 - i, 255 - i, 255 - i);
+    dgx_hw_draw_text(strip, x, base, font, text, scale, DGX_PEN_SOFT | pen, 255, true);
+    dgx_vscreen8_to_screen16(screen, 0, y, strip, lut, 0);
+    dgx_screen_destroy(&strip);
 }
 
 void setup_screen_state(dgx_screen_t *screen, const char *state)

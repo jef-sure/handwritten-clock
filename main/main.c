@@ -134,7 +134,7 @@ static bool web_settings(dgx_screen_t *screen)
     /* the address and how well the access point is heard: a page that loads badly is explained by a weak signal */
     if (net_get_rssi(&rssi)) {
         /* the minus sign of the font, U+2212: its hyphen stands too low before a digit */
-        snprintf(state, sizeof(state), "%s  %s%d dB", address, rssi < 0 ? "\xE2\x88\x92" : "", abs(rssi));
+        snprintf(state, sizeof(state), "%s  %s%d dBm", address, rssi < 0 ? "\xE2\x88\x92" : "", abs(rssi));
         ESP_LOGI(TAG, "Signal %d dBm", rssi);
     } else {
         strlcpy(state, address, sizeof(state));
