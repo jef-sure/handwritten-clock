@@ -4,7 +4,6 @@ dependencies:
   jef-sure/dgx: ">=0.5.5"
   jef-sure/mjson: "^0.0.2"
   espressif/network_provisioning: "^1.0.0"
-  espressif/qrcode: "^0.1.0"
   espressif/mdns: "^1.4.0"
   # ESP32-P4 has no radio: Wi-Fi and BLE are in the ESP32-C6 of the board
   espressif/esp_wifi_remote:

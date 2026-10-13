@@ -182,7 +182,9 @@ the script `misc/split_to_template.py` cuts it into pieces at places like
      `misc`; `main/fonts` has a part of it turned into code by the `font2c`
      utility of dgx;
   2. JSON is parsed by [mjson](https://github.com/cesanta/mjson), Cesanta, MIT,
-     as the component [jef-sure/mjson](https://components.espressif.com/components/jef-sure/mjson/).
+     as the component [jef-sure/mjson](https://components.espressif.com/components/jef-sure/mjson/);
+  3. QR codes are made by the [QR Code generator](https://github.com/nayuki/QR-Code-generator)
+     library of Project Nayuki, MIT. Its two C files are in `components/qrcodegen` as they are.
 
 # License
 

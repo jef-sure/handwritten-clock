@@ -1,7 +1,9 @@
 #include <math.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
-#include "qrcode.h"
+#include "esp_log.h"
+#include "qrcodegen.h"
 
 #include "dgx_bits.h"
 #include "dgx_draw.h"
@@ -14,8 +16,10 @@
 #define TEXT_PEN_CELLS 9.0f
 #define TEXT_PEN_LEAST 2
 #define TEXT_MARGIN    8
+/* the largest code: version 10 holds 271 bytes at the lowest correction, several times what a setup shows */
+#define CODE_VERSION_MOST 10
 
-static dgx_screen_t *qr_screen;
+static const char *TAG = "setup_screen";
 
 /* The heights of the title above the code and of the state under it. */
 static int title_strip(const dgx_screen_t *screen)
@@ -46,23 +50,6 @@ static void draw_line_of_text(dgx_screen_t *screen, int y, int height, const cha
     dgx_hw_draw_text(screen, x, base, font, text, scale, pen, 0, true);
 }
 
-static void draw_qrcode(esp_qrcode_handle_t code)
-{
-    int size = esp_qrcode_get_size(code);
-    int top = title_strip(qr_screen), bottom = qr_screen->height - state_strip(qr_screen);
-    int room = bottom - top < qr_screen->width ? bottom - top : qr_screen->width;
-    /* a quiet zone of two modules at every side */
-    int module = room / (size + 4);
-    if (module < 1) module = 1;
-    int x0 = (qr_screen->width - size * module) / 2;
-    int y0 = top + (bottom - top - size * module) / 2;
-    for (int x = 0; x < size; ++x) {
-        for (int y = 0; y < size; ++y) {
-            if (esp_qrcode_get_module(code, x, y)) dgx_fill_rectangle(qr_screen, x0 + x * module, y0 + y * module, module, module, 0);
-        }
-    }
-}
-
 void setup_screen_state(dgx_screen_t *screen, const char *state)
 {
     /* the strip and its text are one picture: a display that shows a batch whole shows them together */
@@ -79,10 +66,29 @@ void setup_screen_draw(dgx_screen_t *screen, const char *title, const char *code
     draw_line_of_text(screen, 0, title_strip(screen), title);
     setup_screen_state(screen, state);
     if (code) {
-        esp_qrcode_config_t qr = ESP_QRCODE_CONFIG_DEFAULT();
-        qr_screen = screen;
-        qr.display_func = draw_qrcode;
-        esp_qrcode_generate(&qr, code);
+        /* the library gives the code as a square of modules in a buffer; it needs a second buffer of the same size to work in */
+        size_t   length = qrcodegen_BUFFER_LEN_FOR_VERSION(CODE_VERSION_MOST);
+        uint8_t *modules = malloc(length), *work = malloc(length);
+        if (modules && work &&
+            qrcodegen_encodeText(code, work, modules, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, CODE_VERSION_MOST, qrcodegen_Mask_AUTO, true)) {
+            int size = qrcodegen_getSize(modules);
+            int top = title_strip(screen), bottom = screen->height - state_strip(screen);
+            int room = bottom - top < screen->width ? bottom - top : screen->width;
+            /* a quiet zone of two modules at every side */
+            int module = room / (size + 4);
+            if (module < 1) module = 1;
+            int x0 = (screen->width - size * module) / 2;
+            int y0 = top + (bottom - top - size * module) / 2;
+            for (int x = 0; x < size; ++x) {
+                for (int y = 0; y < size; ++y) {
+                    if (qrcodegen_getModule(modules, x, y)) dgx_fill_rectangle(screen, x0 + x * module, y0 + y * module, module, module, 0);
+                }
+            }
+        } else {
+            ESP_LOGE(TAG, "No QR code of \"%s\": no memory, or the text is too long", code);
+        }
+        free(work);
+        free(modules);
     }
     dgx_screen_progress_down(screen);
 }

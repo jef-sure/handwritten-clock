@@ -168,7 +168,9 @@ QR-кодом:
      Эрика Флауэрса, лицензия SIL OFL 1.1. Сам шрифт лежит в `misc`, в
      `main/fonts` — его часть, переведённая в код утилитой `font2c` из dgx;
   2. Разбор JSON — [mjson](https://github.com/cesanta/mjson), Cesanta, MIT,
-     в виде компонента [jef-sure/mjson](https://components.espressif.com/components/jef-sure/mjson/).
+     в виде компонента [jef-sure/mjson](https://components.espressif.com/components/jef-sure/mjson/);
+  3. QR-коды — библиотека [QR Code generator](https://github.com/nayuki/QR-Code-generator)
+     Project Nayuki, MIT. Два её файла на C лежат в `components/qrcodegen` как есть.
 
 # Лицензия
 
