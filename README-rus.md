@@ -64,7 +64,7 @@ JD9165 по MIPI-DSI, WiFi и BLE в ESP32-C6 рядом. Код тот же, в
 
 Нужен ESP-IDF 5.2 или новее. Собирал и проверял я под 5.5.4 и 6.0.1, на одной
 плате, а под версиями от 5.2 до 5.4 не проверял. Компоненты, включая
-[dgx](https://github.com/jef-sure/esp32-component-dgx) 0.5.4 или новее, скачает менеджер
+[dgx](https://github.com/jef-sure/esp32-component-dgx) 0.5.5 или новее, скачает менеджер
 компонентов.
 
     idf.py set-target esp32

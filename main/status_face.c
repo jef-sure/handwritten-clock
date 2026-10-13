@@ -147,14 +147,9 @@ static void wifi_draw(sign_t *sign, int arcs)
     int cx = sign->x + place / 2, cy = h - 1 - dot;
     dgx_solid_circle(band, cx, cy, dot, INK);
     for (int i = 1; i <= arcs; ++i) {
-        /* a quarter of a circle as one curve of three points: its middle point is where the two tangents meet */
-        float          r = (float)(cy - pen) * i / (ARCS * 1.06f);
-        dgx_point_2d_t arc[3] = {
-            {(int16_t)lroundf(cx - r * 0.7071f), (int16_t)lroundf(cy - r * 0.7071f)},
-            {(int16_t)cx, (int16_t)lroundf(cy - r * 1.4142f)},
-            {(int16_t)lroundf(cx + r * 0.7071f), (int16_t)lroundf(cy - r * 0.7071f)},
-        };
-        dgx_draw_bezier3(band, arc, 0, DGX_PEN_SOFT | pen, INK);
+        /* a quarter of a turn over the dot; the largest has its top a pen under the top of the band */
+        int r = ((cy - pen) * i + ARCS / 2) / ARCS;
+        dgx_draw_arc(band, cx, cy, r, r, 45, 135, DGX_PEN_SOFT | pen, INK);
     }
     sign->arcs = arcs;
     sign->drawn = true;
